@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/nbutton23/zxcvbn-go"
@@ -35,7 +36,10 @@ func main() {
 	}()
 
 	userCollection := client.Database("production").Collection("users")
+
+	// create server and allow CORS from all origins
 	r := gin.Default()
+	r.Use(cors.Default())
 
 	r.POST("/login", func(c *gin.Context) {
 		// read query parameters
