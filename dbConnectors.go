@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// User is a representation of a document from the users collection in MongoDB
 type User struct {
 	ID       primitive.ObjectID `bson:"_id, omitempty"`
 	Email    string
@@ -30,7 +31,7 @@ func loadUserByEmail(email string, collection *mongo.Collection) User {
 
 	return result
 }
-func loadUserById(id string, collection *mongo.Collection) User {
+func loadUserByID(id string, collection *mongo.Collection) User {
 	objID, _ := primitive.ObjectIDFromHex(id)
 	filter := bson.M{"_id": objID}
 

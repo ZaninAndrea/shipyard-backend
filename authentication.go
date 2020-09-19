@@ -9,16 +9,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// HashPassword returns the bcrypt hash of the passed password
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
 }
 
+// CheckPasswordHash checks whether the passed password is the same as the
+// one stored in the hash (collision probability is negligible)
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
+// AccessToken is a token used to authenticate a request
 type AccessToken struct {
 	UserID string
 }
@@ -39,6 +43,7 @@ func parseBearer(authorizationHeader []string) (*AccessToken, error) {
 	return parsedToken, nil
 }
 
+// VerifyToken checks that the passed token is valid and returns its decoded content
 func VerifyToken(tokenString string) (*AccessToken, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -63,6 +68,8 @@ func VerifyToken(tokenString string) (*AccessToken, error) {
 	return &AccessToken{userID}, nil
 }
 
+// GenerateToken creates and signs a token containing the payload
+// generated from the arguments
 func GenerateToken(id string) string {
 	atClaims := jwt.MapClaims{"userId": id}
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)

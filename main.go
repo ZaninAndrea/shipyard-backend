@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/nbutton23/zxcvbn-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -63,6 +64,7 @@ func main() {
 			"token": GenerateToken(userFound.ID.Hex()),
 		})
 	})
+
 	r.GET("/user", func(c *gin.Context) {
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
@@ -70,7 +72,7 @@ func main() {
 			c.JSON(500, gin.H{"error": err})
 			return
 		}
-		userFound := loadUserById(parsedToken.UserID, userCollection)
+		userFound := loadUserByID(parsedToken.UserID, userCollection)
 
 		// parse the bson data into JSON saved as []byte
 		jsonBytes, err := bson.MarshalExtJSON(userFound.Data, true, true)
@@ -78,12 +80,21 @@ func main() {
 		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.String(200, string(jsonBytes))
 	})
+
 	r.POST("/user", func(c *gin.Context) {
 		email, providedEmail := c.Request.URL.Query()["email"]
 		password, providedPassword := c.Request.URL.Query()["password"]
 		if !providedEmail || !providedPassword {
 			c.JSON(400, gin.H{
 				"error": "You need to pass an email and password in the query",
+			})
+			return
+		}
+
+		passwordStrength := zxcvbn.PasswordStrength(password[0], []string{email[0]})
+		if passwordStrength.Score < 2 {
+			c.JSON(400, gin.H{
+				"error": "The password is too weak",
 			})
 			return
 		}
@@ -126,6 +137,7 @@ func main() {
 			"token": GenerateToken(id),
 		})
 	})
+
 	r.PUT("/user", func(c *gin.Context) {
 		// Check authorization
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
@@ -156,8 +168,8 @@ func main() {
 		}
 
 		c.String(200, "")
-
 	})
+
 	r.DELETE("/user", func(c *gin.Context) {
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
