@@ -48,6 +48,21 @@ func main() {
 			return
 		}
 
+		// check if user exists
+		filter := bson.M{"email": email[0]}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		count, err := userCollection.CountDocuments(ctx, filter)
+
+		if err != nil {
+			panic(err)
+		} else if count == 0 {
+			c.JSON(400, gin.H{"error": "User with this email not found"})
+			return
+		}
+
+		// load user
 		userFound := loadUserByEmail(email[0], userCollection)
 
 		// check that the password is correct
