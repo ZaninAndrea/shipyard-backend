@@ -1,0 +1,6 @@
+{
+  "name": "A Generic Go Server",
+  "description": "A server capable to handle generic data in JSON format",
+  "repository": "https://github.com/ZaninAndrea/a-generic-go-server",
+  "keywords": ["go"]
+}

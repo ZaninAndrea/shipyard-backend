@@ -1,4 +1,4 @@
-# A generic go server
+# A generic go server [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 The server can be used as a baseline to develop your own or even as is. The server handles authentication with JWT tokens and supports the CRUD operations for users, the data stored can be an arbitrary JSON.
 
