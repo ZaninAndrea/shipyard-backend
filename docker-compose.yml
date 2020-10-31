@@ -1,0 +1,39 @@
+version: "3.4"
+services:
+    server:
+        container_name: generic-server-dev
+        env_file:
+            - .env
+        volumes:
+            - .:/usr/src/app
+        command: go run .
+        build: .
+        image: generic/server
+        container_name: generic-server
+        ports:
+            - "8080:8080"
+        expose:
+            - 8080
+        networks:
+            - host
+
+    db:
+        image: mongo:4
+        container_name: generic-db-dev
+        environment:
+            - MONGO_INITDB_ROOT_USERNAME=test
+            - MONGO_INITDB_ROOT_PASSWORD=test
+            - MONGO_INITDB_DATABASE=test
+        networks:
+            - host
+        volumes:
+            - generic-db-volume:/data/db
+        ports:
+            - "27017:27017"
+        expose:
+            - 27017
+
+volumes:
+    generic-db-volume:
+networks:
+    host:

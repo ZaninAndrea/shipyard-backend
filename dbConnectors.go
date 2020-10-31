@@ -14,7 +14,7 @@ type User struct {
 	ID       primitive.ObjectID `bson:"_id, omitempty"`
 	Email    string
 	Password string
-	Data     interface{}
+	Data     bson.M
 }
 
 func loadUserByEmail(email string, collection *mongo.Collection) User {

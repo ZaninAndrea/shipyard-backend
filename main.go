@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	jsonpatchtomongo "github.com/ZaninAndrea/json-patch-to-mongo"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -95,13 +96,13 @@ func main() {
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
-			c.JSON(500, gin.H{"error": err})
+			c.JSON(500, gin.H{"error": "Failed to parse authorization token"})
 			return
 		}
 		userFound := loadUserByID(parsedToken.UserID, userCollection)
 
 		// parse the bson data into JSON saved as []byte
-		jsonBytes, err := bson.MarshalExtJSON(userFound.Data, true, true)
+		jsonBytes, err := bson.MarshalExtJSON(userFound.Data, false, true)
 
 		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.String(200, string(jsonBytes))
@@ -142,7 +143,7 @@ func main() {
 		// parse json body to bson
 		jsonData, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			panic(err)
+			c.JSON(400, gin.H{"error": "Failed to parse body"})
 		}
 		var initialData interface{}
 		err = bson.UnmarshalExtJSON(jsonData, true, &initialData)
@@ -164,18 +165,52 @@ func main() {
 		})
 	})
 
+	r.PATCH("/user", func(c *gin.Context) {
+		// Check authorization
+		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to parse token"})
+			return
+		}
+
+		rawPatch, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to read body"})
+			return
+		}
+		_updateQuery, err := jsonpatchtomongo.ParsePatchesWithPrefix(rawPatch, "data.")
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		// apply the update query to the authenticated user
+		objID, _ := primitive.ObjectIDFromHex(parsedToken.UserID)
+		filter := bson.M{"_id": objID}
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err = userCollection.FindOneAndUpdate(ctx, filter, _updateQuery).Err()
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to apply patch to database"})
+			return
+		}
+
+		c.String(200, "")
+	})
+
 	r.PUT("/user", func(c *gin.Context) {
 		// Check authorization
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
-			c.JSON(500, gin.H{"error": err})
+			c.JSON(500, gin.H{"error": "Failed to parse authorization token"})
 			return
 		}
 
 		// parse json body to bson
 		jsonData, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			panic(err)
+			c.JSON(500, gin.H{"error": "Failed to read body"})
 		}
 		var updateQuery interface{}
 		err = bson.UnmarshalExtJSON(jsonData, true, &updateQuery)
@@ -200,7 +235,7 @@ func main() {
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
-			c.JSON(500, gin.H{"error": err})
+			c.JSON(500, gin.H{"error": "Failed to parse authorization token"})
 			return
 		}
 
