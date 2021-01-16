@@ -99,7 +99,21 @@ func main() {
 			c.JSON(500, gin.H{"error": "Failed to parse authorization token"})
 			return
 		}
-		userFound := loadUserByID(parsedToken.UserID, userCollection)
+
+		var _projection bson.M
+		jsonData, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			_projection = bson.M{}
+		} else {
+			err = bson.UnmarshalExtJSON(jsonData, true, &_projection)
+		}
+
+		projection := bson.M{}
+		for k, v := range _projection {
+			projection["data."+k] = v
+		}
+
+		userFound := loadUserByID(parsedToken.UserID, userCollection, projection)
 
 		// parse the bson data into JSON saved as []byte
 		jsonBytes, err := bson.MarshalExtJSON(userFound.Data, false, true)
