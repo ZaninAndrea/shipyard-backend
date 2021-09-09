@@ -92,6 +92,65 @@ func main() {
 		})
 	})
 
+	r.POST("/changePassword", func(c *gin.Context) {
+		email, providedEmail := c.Request.URL.Query()["email"]
+		oldPassword, providedOldPassword := c.Request.URL.Query()["oldPassword"]
+		newPassword, providedNewPassword := c.Request.URL.Query()["newPassword"]
+		if !providedOldPassword || !providedNewPassword || !providedEmail {
+			c.JSON(400, gin.H{
+				"error": "You need to pass email, oldPassword and newPassword in the query",
+			})
+			return
+		}
+		passwordStrength := zxcvbn.PasswordStrength(newPassword[0], []string{email[0]})
+		if passwordStrength.Score < 2 {
+			c.JSON(400, gin.H{
+				"error": "The new password is too weak",
+			})
+			return
+		}
+
+		// check if user exists
+		filter := bson.M{"email": email[0]}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		count, err := userCollection.CountDocuments(ctx, filter)
+
+		if err != nil {
+			panic(err)
+		} else if count == 0 {
+			c.JSON(400, gin.H{"error": "User with this email not found"})
+			return
+		}
+
+		// load user
+		userFound := loadUserByEmail(email[0], userCollection)
+
+		// check that the password is correct
+		hash := userFound.Password
+		match := CheckPasswordHash(oldPassword[0], hash)
+		if !match {
+			c.JSON(500, gin.H{
+				"error": "Wrong password",
+			})
+			return
+		}
+
+		passwordHash, err := HashPassword(newPassword[0])
+		if err != nil {
+			panic(err)
+		}
+		update := bson.M{"$set": bson.M{"password": passwordHash}}
+
+		err = userCollection.FindOneAndUpdate(ctx, filter, update).Err()
+		if err != nil {
+			panic(err)
+		}
+
+		c.String(200, "")
+	})
+
 	r.GET("/user", func(c *gin.Context) {
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
