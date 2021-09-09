@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"time"
 
 	jsonpatchtomongo "github.com/ZaninAndrea/json-patch-to-mongo"
@@ -15,11 +17,24 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	gomail "gopkg.in/gomail.v2"
 )
 
 func main() {
 	// load .env file
 	godotenv.Load()
+
+	// Setting up email sending
+	username := os.Getenv("SMTP_USERNAME")
+	password := os.Getenv("SMTP_PASSWORD")
+	server := os.Getenv("SMTP_SERVER")
+	port, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
+	if err != nil {
+		fmt.Println("Specified SMTP_PORT is not a number")
+		os.Exit(1)
+	}
+	emailDialer := gomail.NewDialer(server, port, username, password)
+	brandedEmailSender := NewBrandedEmailSender(emailDialer)
 
 	// connect to mongodb
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -149,6 +164,7 @@ func main() {
 		}
 
 		c.String(200, "")
+		brandedEmailSender.sendPasswordChangedEmail(email[0])
 	})
 
 	r.GET("/user", func(c *gin.Context) {
