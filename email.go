@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"os"
 	"strconv"
 	"text/template"
 	"time"
@@ -520,49 +519,38 @@ type BrandedEmailData struct {
 	HeaderColor string
 }
 
-type BrandedEmailSender struct {
-	ProductName   string
-	Company       string
-	Address       string
-	LogoLink      string
-	Domain        string
-	HeaderColor   string
-	EmailTemplate *template.Template
-	EmailDialer   *gomail.Dialer
-}
+var _emailTemplate *template.Template
 
-func NewBrandedEmailSender(emailDialer *gomail.Dialer) BrandedEmailSender {
+func BrandedEmailTemplate() *template.Template {
+	if _emailTemplate != nil {
+		return _emailTemplate
+	}
+
 	emailTemplate := template.New("Email Template")
 	emailTemplate, err := emailTemplate.Parse(rawEmailTemplate)
 	if err != nil {
 		panic(err)
 	}
 
-	return BrandedEmailSender{
-		Company:       os.Getenv("COMPANY_NAME"),
-		Address:       os.Getenv("COMPANY_ADDRESS"),
-		LogoLink:      os.Getenv("LOGO_LINK"),
-		Domain:        os.Getenv("APP_DOMAIN"),
-		HeaderColor:   os.Getenv("HEADER_COLOR"),
-		ProductName:   os.Getenv("APP_NAME"),
-		EmailTemplate: emailTemplate,
-		EmailDialer:   emailDialer,
-	}
+	_emailTemplate = emailTemplate
+
+	return emailTemplate
 }
 
-func (b *BrandedEmailSender) sendPasswordChangedEmail(recipient string) {
+func (config *DatabaseConfig) sendPasswordChangedEmail(recipient string) {
+	emailTemplate := BrandedEmailTemplate()
 	bodyBuffer := new(bytes.Buffer)
 
-	b.EmailTemplate.Execute(bodyBuffer, BrandedEmailData{
-		Company:     b.Company,
-		Address:     b.Address,
-		LogoLink:    b.LogoLink,
-		Domain:      b.Domain,
-		HeaderColor: b.HeaderColor,
+	emailTemplate.Execute(bodyBuffer, BrandedEmailData{
+		Company:     config.Company.Name,
+		Address:     config.Company.Address,
+		LogoLink:    config.App.LogoLink,
+		Domain:      config.App.Link,
+		HeaderColor: config.App.HeaderColor,
 		Year:        strconv.Itoa(time.Now().Year()),
-		HtmlContent: "You just changed the password of your " + b.ProductName +
+		HtmlContent: "You just changed the password of your " + config.App.Name +
 			" account. If this was a mistake contact us to avoid losing access to your account.<br/><br/>Cheers,<br/>The " +
-			b.ProductName + " team",
+			config.App.Name + " team",
 	})
 
 	m := gomail.NewMessage()
@@ -570,11 +558,11 @@ func (b *BrandedEmailSender) sendPasswordChangedEmail(recipient string) {
 	m.SetHeader("To", recipient)
 	m.SetHeader("Subject", "Password successfully changed")
 	m.SetBody("text/html", bodyBuffer.String())
-	m.AddAlternative("text/plain", "You just changed the password of your "+b.ProductName+
+	m.AddAlternative("text/plain", "You just changed the password of your "+config.App.Name+
 		" account. If this was a mistake contact us to avoid losing access to your account.\n\nCheers,\nThe "+
-		b.ProductName+" team")
+		config.App.Name+" team")
 
-	if err := b.EmailDialer.DialAndSend(m); err != nil {
+	if err := config.Smtp.EmailDialer.DialAndSend(m); err != nil {
 		panic(err)
 	}
 }

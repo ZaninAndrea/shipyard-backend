@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"time"
 
 	jsonpatchtomongo "github.com/ZaninAndrea/json-patch-to-mongo"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/nbutton23/zxcvbn-go"
@@ -17,24 +17,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	gomail "gopkg.in/gomail.v2"
 )
 
 func main() {
 	// load .env file
 	godotenv.Load()
-
-	// Setting up email sending
-	username := os.Getenv("SMTP_USERNAME")
-	password := os.Getenv("SMTP_PASSWORD")
-	server := os.Getenv("SMTP_SERVER")
-	port, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
-	if err != nil {
-		fmt.Println("Specified SMTP_PORT is not a number")
-		os.Exit(1)
-	}
-	emailDialer := gomail.NewDialer(server, port, username, password)
-	brandedEmailSender := NewBrandedEmailSender(emailDialer)
 
 	// connect to mongodb
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -51,8 +38,6 @@ func main() {
 		}
 	}()
 
-	userCollection := client.Database("production").Collection("users")
-
 	// create server and allow CORS from all origins
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -63,8 +48,18 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	r.Use(location.Default())
 
 	r.POST("/login", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		// read query parameters
 		email, providedEmail := c.Request.URL.Query()["email"]
 		password, providedPassword := c.Request.URL.Query()["password"]
@@ -96,7 +91,7 @@ func main() {
 		hash := userFound.Password
 		match := CheckPasswordHash(password[0], hash)
 		if !match {
-			c.JSON(500, gin.H{
+			c.JSON(400, gin.H{
 				"error": "Wrong password",
 			})
 			return
@@ -108,6 +103,15 @@ func main() {
 	})
 
 	r.POST("/changePassword", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		email, providedEmail := c.Request.URL.Query()["email"]
 		oldPassword, providedOldPassword := c.Request.URL.Query()["oldPassword"]
 		newPassword, providedNewPassword := c.Request.URL.Query()["newPassword"]
@@ -146,7 +150,7 @@ func main() {
 		hash := userFound.Password
 		match := CheckPasswordHash(oldPassword[0], hash)
 		if !match {
-			c.JSON(500, gin.H{
+			c.JSON(400, gin.H{
 				"error": "Wrong password",
 			})
 			return
@@ -164,10 +168,19 @@ func main() {
 		}
 
 		c.String(200, "")
-		brandedEmailSender.sendPasswordChangedEmail(email[0])
+		config.sendPasswordChangedEmail(email[0])
 	})
 
 	r.GET("/user", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
@@ -198,6 +211,15 @@ func main() {
 	})
 
 	r.POST("/user", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		email, providedEmail := c.Request.URL.Query()["email"]
 		password, providedPassword := c.Request.URL.Query()["password"]
 		if !providedEmail || !providedPassword {
@@ -255,6 +277,15 @@ func main() {
 	})
 
 	r.PATCH("/user", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		// Check authorization
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
@@ -289,6 +320,15 @@ func main() {
 	})
 
 	r.PUT("/user", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		// Check authorization
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
@@ -321,6 +361,15 @@ func main() {
 	})
 
 	r.DELETE("/user", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
 		// check authentication
 		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
 		if err != nil {
@@ -335,6 +384,205 @@ func main() {
 		defer cancel()
 
 		err = userCollection.FindOneAndDelete(ctx, filter).Err()
+		if err != nil {
+			panic(err)
+		}
+
+		c.String(200, "")
+	})
+
+	adminDomain := os.Getenv("ADMIN_DOMAIN")
+	r.GET("/admin/checkPassword", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"ok": true,
+		})
+	})
+
+	r.GET("/admin/configs", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		configs, err := GetAllServerConfigs(client)
+		if err != nil {
+			panic(err)
+		}
+
+		jsonBytes, err := json.Marshal(configs)
+		if err != nil {
+			panic(err)
+		}
+
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, string(jsonBytes))
+	})
+
+	r.POST("/admin/configs", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		// parse json body to DatabaseConfig
+		jsonData, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Failed to parse body"})
+			return
+		}
+		var configData DatabaseConfigNoID
+		err = json.Unmarshal(jsonData, &configData)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Configuration passed is invalid"})
+			return
+		}
+
+		// Check that the DatabaseConfig is valid
+		if configData.Domain == "" {
+			c.JSON(400, gin.H{"error": "You must pass a domain"})
+			return
+		}
+
+		// check if a configuration with the same domain exists
+		filter := bson.M{"domain": configData.Domain}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		count, err := client.Database("administration").Collection("servers").CountDocuments(ctx, filter)
+		if err != nil {
+			panic(err)
+		} else if count > 0 {
+			c.JSON(400, gin.H{"error": "Another server with this domain already exists"})
+			return
+		}
+
+		// Create new server configuration
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err = client.Database("administration").Collection("servers").InsertOne(
+			ctx,
+			configData,
+		)
+		if err != nil {
+			panic(err)
+		}
+
+		c.String(200, "")
+	})
+
+	r.PUT("/admin/configs", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		// parse json body to DatabaseConfig
+		jsonData, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Failed to parse body"})
+			return
+		}
+		var configData DatabaseConfigNoInternals
+		err = json.Unmarshal(jsonData, &configData)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Configuration passed is invalid"})
+			return
+		}
+
+		// check if a configuration with the same domain exists
+		filter := bson.M{"_id": configData.ID}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		count, err := client.Database("administration").Collection("servers").CountDocuments(ctx, filter)
+		if err != nil {
+			panic(err)
+		} else if count == 0 {
+			c.JSON(400, gin.H{"error": "No server exists with the passed id"})
+			return
+		}
+
+		// Create new server configuration
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err = client.Database("administration").Collection("servers").UpdateOne(
+			ctx,
+			filter,
+			bson.M{
+				"$set": configData,
+			},
+		)
 		if err != nil {
 			panic(err)
 		}
