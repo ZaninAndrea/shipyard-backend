@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
@@ -583,6 +584,49 @@ func main() {
 				"$set": configData,
 			},
 		)
+		if err != nil {
+			panic(err)
+		}
+
+		c.String(200, "")
+	})
+
+	r.DELETE("/admin/configs/:id", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		id, err := primitive.ObjectIDFromHex(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Passed an invalid id"})
+			return
+		}
+
+		// check if a configuration with the same domain exists
+		filter := bson.M{"_id": id}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		res, err := client.Database("administration").Collection("servers").DeleteOne(ctx, filter)
+		fmt.Println((*res).DeletedCount)
+		fmt.Println(filter)
 		if err != nil {
 			panic(err)
 		}
