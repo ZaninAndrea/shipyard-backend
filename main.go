@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
@@ -312,6 +313,7 @@ func main() {
 		err = userCollection.FindOneAndUpdate(ctx, filter, _updateQuery).Err()
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to apply patch to database"})
+			fmt.Println(err)
 			return
 		}
 
