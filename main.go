@@ -391,5 +391,11 @@ func main() {
 	})
 
 	SetupAdminRoute(r, client)
-	r.Run()
+
+	if os.Getenv("TLS_CERT_DIR") == "" {
+		r.Run()
+	} else {
+		dir := os.Getenv("TLS_CERT_DIR")
+		r.RunTLS(":8080", dir+"/cert.pem", dir+"/privkey.pem")
+	}
 }
