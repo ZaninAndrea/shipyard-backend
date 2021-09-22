@@ -396,6 +396,6 @@ func main() {
 		r.Run()
 	} else {
 		dir := os.Getenv("TLS_CERT_DIR")
-		r.RunTLS(":8080", dir+"/cert.pem", dir+"/privkey.pem")
+		r.RunTLS(":8080", dir+"/fullchain.pem", dir+"/privkey.pem")
 	}
 }
