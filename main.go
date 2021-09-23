@@ -298,7 +298,7 @@ func main() {
 			c.JSON(500, gin.H{"error": "Failed to read body"})
 			return
 		}
-		_updateQuery, err := jsonpatchtomongo.ParsePatchesWithPrefix(rawPatch, "data.")
+		_updateQuery, shouldAggregate, err := jsonpatchtomongo.ParsePatchesWithPrefix(rawPatch, "data.")
 		if err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
@@ -310,7 +310,14 @@ func main() {
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err = userCollection.FindOneAndUpdate(ctx, filter, bson.A{_updateQuery}).Err()
+		var query interface{}
+		if shouldAggregate {
+			query = bson.A{_updateQuery}
+		} else {
+			query = _updateQuery
+		}
+
+		_, err = userCollection.UpdateOne(ctx, filter, query)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to apply patch to database"})
 			fmt.Println(err)

@@ -10,6 +10,8 @@ github.com/ZaninAndrea/json-patch-to-mongo v1.0.3 h1:hoaFUp2zHP1oKysI/HCye2p47Rh
 github.com/ZaninAndrea/json-patch-to-mongo v1.0.3/go.mod h1:wdbKcIl44LFmVN0uhnitpBhFYsvIrzzrNCID40Ofi6Y=
 github.com/ZaninAndrea/json-patch-to-mongo v1.0.6 h1:uORo2Gy9p6LbjD7dHCtxBSW2MClS755GBxhFkMZsL1Y=
 github.com/ZaninAndrea/json-patch-to-mongo v1.0.6/go.mod h1:wdbKcIl44LFmVN0uhnitpBhFYsvIrzzrNCID40Ofi6Y=
+github.com/ZaninAndrea/json-patch-to-mongo v1.0.7 h1:0vjIT4Wh7jG89sOx2NinxUC94ecBJxUIIuz2YId+uT8=
+github.com/ZaninAndrea/json-patch-to-mongo v1.0.7/go.mod h1:wdbKcIl44LFmVN0uhnitpBhFYsvIrzzrNCID40Ofi6Y=
 github.com/aws/aws-sdk-go v1.29.15 h1:0ms/213murpsujhsnxnNKNeVouW60aJqSd992Ks3mxs=
 github.com/aws/aws-sdk-go v1.29.15/go.mod h1:1KvfttTE3SPKMpo8g2c6jL3ZKfXtFvKscTgahTma5Xg=
 github.com/aws/aws-sdk-go v1.34.28 h1:sscPpn/Ns3i0F4HPEWAVcwdIRaZZCuL7llJ2/60yPIk=
