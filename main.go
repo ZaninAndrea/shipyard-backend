@@ -310,7 +310,7 @@ func main() {
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err = userCollection.FindOneAndUpdate(ctx, filter, _updateQuery).Err()
+		err = userCollection.FindOneAndUpdate(ctx, filter, bson.A{_updateQuery}).Err()
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to apply patch to database"})
 			fmt.Println(err)
@@ -394,6 +394,7 @@ func main() {
 
 	SetupAdminRoute(r, client)
 
+	// test(r, client)
 	if os.Getenv("TLS_CERT_DIR") == "" {
 		r.Run()
 	} else {
@@ -401,3 +402,25 @@ func main() {
 		r.RunTLS(":8080", dir+"/fullchain.pem", dir+"/privkey.pem")
 	}
 }
+
+// func test(r *gin.Engine, client *mongo.Client) {
+// 	objID, _ := primitive.ObjectIDFromHex("613b7135a161e522ea5d5575")
+// 	filter := bson.M{"_id": objID}
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
+
+// 	_updateQuery, err := jsonpatchtomongo.ParsePatchesWithPrefix([]byte(`[
+//   		{ "op": "replace", "path": "/abc", "value": "test" }
+// 	]`), "data.")
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return
+// 	}
+
+// 	userCollection := client.Database("generic_613b7122a161e522ea5d5574").Collection("users")
+// 	err = userCollection.FindOneAndUpdate(ctx, filter, bson.A{_updateQuery}).Err()
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return
+// 	}
+// }
