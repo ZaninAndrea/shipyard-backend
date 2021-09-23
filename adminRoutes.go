@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gin-contrib/location"
@@ -13,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
@@ -256,6 +258,106 @@ func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
 		}
 
 		c.String(200, "")
+	})
+
+	r.GET("/admin/configs/:id/users", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		_limit, providedLimit := c.Request.URL.Query()["limit"]
+		var limit int64 = 30
+		if providedLimit {
+			i1, err := strconv.Atoi(_limit[0])
+			if err != nil {
+				c.JSON(400, gin.H{
+					"error": "Limit must be an integer",
+				})
+				return
+			}
+			if i1 < 30 {
+				limit = int64(i1)
+			}
+		}
+		_offset, providedOffset := c.Request.URL.Query()["offset"]
+		var offset int64 = 0
+		if providedOffset {
+			i1, err := strconv.Atoi(_offset[0])
+			if err != nil {
+				c.JSON(400, gin.H{
+					"error": "Offset must be an integer",
+				})
+				return
+			}
+			if i1 > 0 {
+				offset = int64(i1)
+			}
+		}
+
+		id, err := primitive.ObjectIDFromHex(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Passed an invalid id"})
+			return
+		}
+
+		// load the configuration
+		filter := bson.M{"_id": id}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var config DatabaseConfig
+		err = client.Database("administration").Collection("servers").FindOne(ctx, filter).Decode(&config)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Couldn't load the server configuration matching the passed id"})
+			return
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		options := options.Find()
+		options.SetLimit(limit)
+		options.SetSkip(offset)
+		cursor, err := client.Database("generic_"+config.ID.Hex()).Collection("users").Find(ctx, bson.D{}, options)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Could not load the users"})
+			return
+		}
+		users := make([]User, 0)
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err = cursor.All(ctx, &users)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed parsing the users"})
+			return
+		}
+
+		// Parse to JSON and return it
+		jsonBytes, err := json.Marshal(users)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed parsing users to json"})
+			fmt.Println(err)
+			return
+		}
+
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, string(jsonBytes))
 	})
 
 }
