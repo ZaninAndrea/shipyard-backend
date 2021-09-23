@@ -334,6 +334,7 @@ func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
 		options := options.Find()
 		options.SetLimit(limit)
 		options.SetSkip(offset)
+		options.SetProjection(bson.M{"data": 0})
 		cursor, err := client.Database("generic_"+config.ID.Hex()).Collection("users").Find(ctx, bson.D{}, options)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Could not load the users"})
