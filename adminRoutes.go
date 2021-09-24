@@ -260,7 +260,7 @@ func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
 		c.String(200, "")
 	})
 
-	r.GET("/admin/configs/:id/users", func(c *gin.Context) {
+	r.GET("/admin/configs/:configId/users", func(c *gin.Context) {
 		url := location.Get(c)
 		if url.Hostname() != adminDomain {
 			c.JSON(400, gin.H{
@@ -312,7 +312,7 @@ func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
 			}
 		}
 
-		id, err := primitive.ObjectIDFromHex(c.Param("id"))
+		id, err := primitive.ObjectIDFromHex(c.Param("configId"))
 		if err != nil {
 			c.JSON(400, gin.H{"error": "Passed an invalid id"})
 			return
@@ -354,6 +354,76 @@ func SetupAdminRoute(r *gin.Engine, client *mongo.Client) {
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed parsing users to json"})
 			fmt.Println(err)
+			return
+		}
+
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, string(jsonBytes))
+	})
+
+	r.GET("/admin/configs/:configId/users/:userId", func(c *gin.Context) {
+		url := location.Get(c)
+		if url.Hostname() != adminDomain {
+			c.JSON(400, gin.H{
+				"error": "This route is not available",
+			})
+			return
+		}
+
+		password, providedPassword := c.Request.URL.Query()["password"]
+		if !providedPassword {
+			c.JSON(400, gin.H{
+				"error": "You must specify the password query field",
+			})
+			return
+		}
+		if !CheckPasswordHash(password[0], "$2a$14$"+os.Getenv("ADMIN_PASSWORD_HASH")) {
+			c.JSON(400, gin.H{
+				"error": "Passed password is wrong",
+			})
+			return
+		}
+
+		configId, err := primitive.ObjectIDFromHex(c.Param("configId"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Passed an invalid configuration id"})
+			return
+		}
+
+		userId, err := primitive.ObjectIDFromHex(c.Param("userId"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Passed an invalid user id"})
+			return
+		}
+
+		// load the configuration
+		filter := bson.M{"_id": configId}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var config DatabaseConfig
+		err = client.Database("administration").Collection("servers").FindOne(ctx, filter).Decode(&config)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Couldn't load the server configuration matching the passed id"})
+			return
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var result User
+		err = client.
+			Database("generic_"+config.ID.Hex()).
+			Collection("users").
+			FindOne(ctx, bson.M{"_id": userId}).Decode(&result)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Could not load the user"})
+			return
+		}
+
+		// Parse to JSON and return it
+		jsonBytes, err := json.Marshal(result)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Could not marshal the user to JSON"})
 			return
 		}
 
