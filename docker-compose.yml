@@ -6,7 +6,7 @@ services:
             - .env
         volumes:
             - .:/usr/src/app
-        command: go run .
+        command: go run ./cmd
         build: .
         image: generic/server
         container_name: generic-server

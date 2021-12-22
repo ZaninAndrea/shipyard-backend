@@ -1,55 +1,20 @@
-package main
+package internal
 
 import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"time"
 
 	jsonpatchtomongo "github.com/ZaninAndrea/json-patch-to-mongo"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/nbutton23/zxcvbn-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func main() {
-	// load .env file
-	godotenv.Load()
-
-	// connect to mongodb
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("CONNECTION_URI")))
-	if err != nil {
-		panic(err)
-	}
-
-	// disconnect on quit
-	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
-			panic(err)
-		}
-	}()
-
-	// create server and allow CORS from all origins
-	r := gin.Default()
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"*"},
-		AllowHeaders:     []string{"*"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-	r.Use(location.Default())
-
+func SetupUserRoute(r *gin.Engine, client *mongo.Client) {
 	r.POST("/login", func(c *gin.Context) {
 		config, err := GetServerConfig(c, client)
 		if err != nil {
@@ -307,7 +272,7 @@ func main() {
 		// apply the update query to the authenticated user
 		objID, _ := primitive.ObjectIDFromHex(parsedToken.UserID)
 		filter := bson.M{"_id": objID}
-		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		var query interface{}
@@ -355,7 +320,7 @@ func main() {
 		// update database
 		objID, _ := primitive.ObjectIDFromHex(parsedToken.UserID)
 		filter := bson.M{"_id": objID}
-		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		update := bson.M{"$set": bson.M{"data": updateQuery}}
@@ -388,7 +353,7 @@ func main() {
 		// update database
 		objID, _ := primitive.ObjectIDFromHex(parsedToken.UserID)
 		filter := bson.M{"_id": objID}
-		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		err = userCollection.FindOneAndDelete(ctx, filter).Err()
@@ -398,36 +363,4 @@ func main() {
 
 		c.String(200, "")
 	})
-
-	SetupAdminRoute(r, client)
-
-	// test(r, client)
-	if os.Getenv("TLS_CERT_DIR") == "" {
-		r.Run()
-	} else {
-		dir := os.Getenv("TLS_CERT_DIR")
-		r.RunTLS(":8080", dir+"/fullchain.pem", dir+"/privkey.pem")
-	}
 }
-
-// func test(r *gin.Engine, client *mongo.Client) {
-// 	objID, _ := primitive.ObjectIDFromHex("613b7135a161e522ea5d5575")
-// 	filter := bson.M{"_id": objID}
-// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 	defer cancel()
-
-// 	_updateQuery, err := jsonpatchtomongo.ParsePatchesWithPrefix([]byte(`[
-//   		{ "op": "replace", "path": "/abc", "value": "test" }
-// 	]`), "data.")
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		return
-// 	}
-
-// 	userCollection := client.Database("generic_613b7122a161e522ea5d5574").Collection("users")
-// 	err = userCollection.FindOneAndUpdate(ctx, filter, bson.A{_updateQuery}).Err()
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		return
-// 	}
-// }

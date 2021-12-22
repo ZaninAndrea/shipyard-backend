@@ -1,4 +1,4 @@
-module github.com/ZaninAndrea/stat-tracker-backend
+module github.com/ZaninAndrea/shipyard-backend
 
 go 1.14
 
