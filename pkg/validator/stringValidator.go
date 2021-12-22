@@ -50,6 +50,6 @@ func (v *StringValidator) ValidatePatch(patch Patch, position string) error {
 	}
 }
 
-func (v *StringValidator) InitializeAfterUnmarshaling() error {
+func (v *StringValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
 	return nil
 }

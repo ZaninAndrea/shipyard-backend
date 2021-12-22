@@ -39,6 +39,6 @@ func (v *FloatValidator) ValidatePatch(patch Patch, position string) error {
 	}
 }
 
-func (v *FloatValidator) InitializeAfterUnmarshaling() error {
+func (v *FloatValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
 	return nil
 }

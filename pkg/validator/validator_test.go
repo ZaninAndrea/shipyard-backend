@@ -136,3 +136,86 @@ func TestPatchStringValidation(t *testing.T) {
 		t.Error("Didn't throw the string length over maxChars error")
 	}
 }
+
+func TestRecursiveSourceValidation(t *testing.T) {
+	const jsonSource string = `{
+		"name": "Andrea",
+		"email": "andrea@igloo.ooo",
+		"decks":[
+			{
+				"name": "Analisi",
+				"repetitionCount": 59
+			}
+		],
+		"folder":{
+			"name":"Giovanni",
+			"subfolders":[
+				{
+					"name":"Giorgio",
+					"t": 2
+				}
+			]
+		}
+	}
+	`
+
+	const jsonValidator = `{
+		"type": "object",
+		"customTypes":{
+			"folder":{
+				"type": "object",
+				"fields":{
+					"name":{
+						"type":"string"
+					},
+					"subfolders":{
+						"type":"array",
+						"elements":{
+							"type":"folder"
+						}
+					}
+				}
+			}
+		},
+		"fields": {
+			"folder":{
+				"type":"folder"
+			},
+			"name": {
+				"type": "string",
+				"required": false,
+				"maxChars": 20
+			},
+			"email": {
+				"type": "string",
+				"required": true
+			},
+			"decks":{
+				"type":"array",
+				"maxElements": 1,
+				"elements":{
+					"type":"object",
+					"fields":{
+						"name": {
+							"type": "string"
+						},
+						"repetitionCount":{
+							"type": "float"
+						}
+					}
+				}
+			}
+		}	
+	}`
+
+	var v Validator
+	err := json.Unmarshal([]byte(jsonValidator), &v)
+	if err != nil {
+		panic(err)
+	}
+
+	err = v.Validate([]byte(jsonSource))
+	if err != nil {
+		t.Error(err)
+	}
+}

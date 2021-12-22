@@ -33,6 +33,6 @@ func (v *AnyValidator) ValidatePatch(patch Patch, position string) error {
 	return nil
 }
 
-func (v *AnyValidator) InitializeAfterUnmarshaling() error {
+func (v *AnyValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
 	return nil
 }

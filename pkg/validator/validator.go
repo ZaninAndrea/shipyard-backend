@@ -9,16 +9,68 @@ type FieldValidator interface {
 	Type() string
 	Validate(interface{}, string) error
 	ValidatePatch(Patch, string) error
-	InitializeAfterUnmarshaling() error
+	InitializeAfterUnmarshaling(map[string]bool, *Validator) error
 	IsRequired() bool
 }
 
 type Validator struct {
 	fieldValidator FieldValidator
+	customTypes map[string]FieldValidator
+}
+
+type CustomValidator struct{
+	sourceValidator *Validator
+	fieldName string
+}
+
+func (v *CustomValidator) Type() string{
+	return v.fieldName
+}
+
+func (v *CustomValidator) Validate(json interface{}, position string) error {
+	return v.sourceValidator.customTypes[v.fieldName].Validate(json, position)
+}
+
+func (v *CustomValidator) ValidatePatch(patch Patch, position string) error {
+	return v.sourceValidator.customTypes[v.fieldName].ValidatePatch(patch, position)
+}
+
+func (v *CustomValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
+	return nil
+}
+
+func (v *CustomValidator) IsRequired() bool {
+	return v.sourceValidator.customTypes[v.fieldName].IsRequired()
 }
 
 func (v *Validator) UnmarshalJSON(data []byte) error {
-	validator, err := UnmarshalValidator(data)
+	// Unmarshal custom types
+	var validatorType struct {
+		CustomTypes map[string]json.RawMessage `json:"customTypes"`
+	}
+	err := json.Unmarshal(data, &validatorType)
+	
+	typesList := make(map[string]bool)
+	for key := range validatorType.CustomTypes{
+		typesList[key] = true
+	}
+
+	if err != nil {
+		return fmt.Errorf("Passed json is invalid: \n" + err.Error())
+	}
+
+	v.customTypes = make(map[string]FieldValidator)
+	for key, source := range validatorType.CustomTypes{
+		keyValidator, err := UnmarshalValidator(source, typesList, v)
+		if err != nil{
+			return err
+		}
+
+		v.customTypes[key] = keyValidator
+	}
+
+	// Unmarshal validator
+	validator, err := UnmarshalValidator(data, typesList, v)
 
 	if err != nil {
 		return err
@@ -64,7 +116,7 @@ func (v *Validator) ValidatePatches(jsonPatches []byte) error {
 	}
 }
 
-func UnmarshalValidator(data []byte) (FieldValidator, error) {
+func UnmarshalValidator(data []byte, customTypes map[string]bool, rootValidator *Validator) (FieldValidator, error) {
 	var validatorType struct {
 		Type string `json:"type"`
 	}
@@ -80,34 +132,33 @@ func UnmarshalValidator(data []byte) (FieldValidator, error) {
 		var objectValidator ObjectValidator
 		json.Unmarshal(data, &objectValidator)
 		validator = &objectValidator
-		break
 	case "array":
 		var arrayValidator ArrayValidator
 		json.Unmarshal(data, &arrayValidator)
 
 		validator = &arrayValidator
-		break
 	case "string":
 		var stringValidator StringValidator
 		json.Unmarshal(data, &stringValidator)
 
 		validator = &stringValidator
-		break
 	case "float":
 		var floatValidator FloatValidator
 		json.Unmarshal(data, &floatValidator)
 		validator = &floatValidator
-		break
 	case "any":
 		var anyValidator AnyValidator
 		json.Unmarshal(data, &anyValidator)
 		validator = &anyValidator
-		break
 	default:
-		return nil, fmt.Errorf("Passed validation schema is missing the type field or the type is not supported")
+		if _, ok := customTypes[validatorType.Type]; ok{
+			validator = &CustomValidator{sourceValidator: rootValidator, fieldName: validatorType.Type}
+		}else{
+			return nil, fmt.Errorf("Passed validation schema is missing the type field or the type (%s) is not supported", validatorType.Type)
+		}
 	}
 
-	err = validator.InitializeAfterUnmarshaling()
+	err = validator.InitializeAfterUnmarshaling(customTypes, rootValidator)
 	if err != nil {
 		return nil, err
 	}

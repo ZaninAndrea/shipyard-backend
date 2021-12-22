@@ -40,7 +40,7 @@ func (v *ArrayValidator) Validate(json interface{}, position string) error {
 		}
 	}
 
-	if len(jsonArray) > *v.MaxElements {
+	if v.MaxElements != nil && len(jsonArray) > *v.MaxElements {
 		compositeError.errors = append(compositeError.errors, ValidationError{
 			fmt.Sprintf("This array can contain at most %d elements", *v.MaxElements),
 			position,
@@ -90,8 +90,8 @@ func (v *ArrayValidator) ValidatePatch(patch Patch, position string) error {
 	return v.elementsValidator.ValidatePatch(patch, position+"/"+field)
 }
 
-func (v *ArrayValidator) InitializeAfterUnmarshaling() error {
-	validator, err := UnmarshalValidator(v.Elements)
+func (v *ArrayValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
+	validator, err := UnmarshalValidator(v.Elements, customTypes, rootValidator)
 
 	if err != nil {
 		return err

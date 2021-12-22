@@ -86,11 +86,11 @@ func (v *ObjectValidator) ValidatePatch(patch Patch, position string) error {
 	}
 }
 
-func (v *ObjectValidator) InitializeAfterUnmarshaling() error {
+func (v *ObjectValidator) InitializeAfterUnmarshaling(customTypes map[string]bool, rootValidator *Validator) error {
 	v.keyValidators = make(map[string]FieldValidator, len(v.Fields))
 
 	for key, value := range v.Fields {
-		validator, err := UnmarshalValidator(value)
+		validator, err := UnmarshalValidator(value, customTypes, rootValidator)
 
 		if err != nil {
 			return err
