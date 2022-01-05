@@ -19,6 +19,7 @@ type User struct {
 	ID       primitive.ObjectID `bson:"_id, omitempty"`
 	Email    string
 	Password string
+	Plan 	 string
 	Data     bson.M
 }
 

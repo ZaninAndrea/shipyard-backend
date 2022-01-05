@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -175,6 +176,38 @@ func SetupUserRoute(r *gin.Engine, client *mongo.Client) {
 		c.String(200, string(jsonBytes))
 	})
 
+	r.GET("/user/metadata", func(c *gin.Context) {
+		config, err := GetServerConfig(c, client)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		userCollection := config.UserCollection
+
+		// check authentication
+		parsedToken, err := parseBearer(c.Request.Header["Authorization"])
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to parse authorization token"})
+			return
+		}
+
+		userFound := loadUserByID(parsedToken.UserID, userCollection, bson.M{})
+
+		jsonBytes, err := json.Marshal(map[string]interface{}{
+			"email": userFound.Email,
+			"plan": userFound.Plan,
+		})
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Internal error marshaling the JSON"})
+			return
+		}
+
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, string(jsonBytes))
+	})
+
 	r.POST("/user", func(c *gin.Context) {
 		config, err := GetServerConfig(c, client)
 		if err != nil {
@@ -233,7 +266,12 @@ func SetupUserRoute(r *gin.Engine, client *mongo.Client) {
 			panic(err)
 		}
 
-		res, err := userCollection.InsertOne(ctx, bson.M{"email": email[0], "password": passwordHash, "data": initialData})
+		res, err := userCollection.InsertOne(ctx, bson.M{
+			"email": email[0],
+			"password": passwordHash,
+			"plan": "BASIC",
+			"data": initialData,
+		})
 		id := res.InsertedID.(primitive.ObjectID).Hex()
 
 		c.JSON(200, gin.H{
