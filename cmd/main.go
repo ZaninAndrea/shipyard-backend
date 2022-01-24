@@ -105,7 +105,7 @@ func main() {
 			staticServer.Run(":80")
 		} else {
 			dir := os.Getenv("TLS_CERT_DIR")
-			staticServer.RunTLS(":80", dir+"/fullchain.pem", dir+"/privkey.pem")
+			staticServer.RunTLS(":443", dir+"/fullchain.pem", dir+"/privkey.pem")
 		}
 	}(&wg)
 
