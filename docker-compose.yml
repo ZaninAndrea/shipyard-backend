@@ -9,7 +9,6 @@ services:
         command: go run ./cmd
         build: .
         image: generic/server
-        container_name: generic-server
         ports:
             - "8080:8080"
         expose:

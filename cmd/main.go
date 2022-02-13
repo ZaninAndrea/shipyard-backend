@@ -53,12 +53,16 @@ func SetupStaticServer() *gin.Engine {
 	// Serve the requested file from disk
 	r.GET("/*path", func(c *gin.Context) {
 		path := c.Param("path")
+		url := location.Get(c)
+		filePath := filepath.Join(websitesPath, url.Hostname(), path)
+
 		if path == "" {
-			path = "index.html"
+			filePath = filepath.Join(websitesPath, url.Hostname(), "index.html")
+		} else if _, err := os.Stat(filePath); err != nil {
+			filePath = filepath.Join(websitesPath, url.Hostname(), "index.html")
 		}
 
-		url := location.Get(c)
-		c.File(filepath.Join(websitesPath, url.Hostname(), c.Param("path")))
+		c.File(filePath)
 	})
 
 	return r
