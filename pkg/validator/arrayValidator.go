@@ -11,6 +11,7 @@ type ArrayValidator struct {
 	Elements          json.RawMessage
 	Required          bool
 	MaxElements       *int
+	MinElements       *int
 }
 
 func (v *ArrayValidator) Type() string {
@@ -43,6 +44,13 @@ func (v *ArrayValidator) Validate(json interface{}, position string) error {
 	if v.MaxElements != nil && len(jsonArray) > *v.MaxElements {
 		compositeError.errors = append(compositeError.errors, ValidationError{
 			fmt.Sprintf("This array can contain at most %d elements", *v.MaxElements),
+			position,
+		})
+		returnError = true
+	}
+	if v.MinElements != nil && len(jsonArray) < *v.MinElements {
+		compositeError.errors = append(compositeError.errors, ValidationError{
+			fmt.Sprintf("This array must contain at least %d elements", *v.MinElements),
 			position,
 		})
 		returnError = true

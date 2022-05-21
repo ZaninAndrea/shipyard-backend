@@ -1,7 +1,11 @@
 package validator
 
 type FloatValidator struct {
-	Required bool
+	Required  bool
+	Min       *float64 // Enforces a >= constraint
+	StrictMin *float64 // Enforces a > constraint
+	Max       *float64 // Enforces a <= constraint
+	StrictMax *float64 // Enforces a <
 }
 
 func (v *FloatValidator) Type() string {
@@ -13,10 +17,23 @@ func (v *FloatValidator) IsRequired() bool {
 }
 
 func (v *FloatValidator) Validate(json interface{}, position string) error {
-	_, ok := json.(float64)
+	value, ok := json.(float64)
 
 	if !ok {
 		return ValidationError{"This field is not a float", position}
+	}
+
+	if v.Min != nil && value < *v.Min {
+		return ValidationError{"The value is below the Min", position}
+	}
+	if v.Max != nil && value > *v.Max {
+		return ValidationError{"The value is above the Max", position}
+	}
+	if v.StrictMin != nil && value <= *v.StrictMin {
+		return ValidationError{"The value is below or equal to the StrictMin", position}
+	}
+	if v.StrictMax != nil && value > *v.StrictMax {
+		return ValidationError{"The value is above or equal to the StrictMax", position}
 	}
 
 	return nil

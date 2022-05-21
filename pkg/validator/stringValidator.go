@@ -1,11 +1,17 @@
 package validator
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 type StringValidator struct {
-	Required bool
-	MaxChars *int
-	MinChars *int
+	Required      bool
+	MaxChars      *int
+	MinChars      *int
+	RegexMatch    *string // checks that the string matches the given regex
+	NoRegexMatch  *string // checks that the string doesn't match the given regex
+	AllowedValues *[]string
 }
 
 func (v *StringValidator) Type() string {
@@ -28,6 +34,39 @@ func (v *StringValidator) Validate(json interface{}, position string) error {
 	}
 	if v.MinChars != nil && len(jsonString) < *v.MinChars {
 		return ValidationError{fmt.Sprintf("This string is shorter than minChars (%d)", *v.MinChars), position}
+	}
+	if v.RegexMatch != nil {
+		r, err := regexp.Compile(*v.RegexMatch)
+		if err != nil {
+			return ValidationError{"The validator for this field has an invalid RegexMatch", position}
+		}
+
+		if !r.MatchString(jsonString) {
+			return ValidationError{fmt.Sprintf("This string does not match the RegexMatch field: %s", *v.RegexMatch), position}
+		}
+	}
+	if v.NoRegexMatch != nil {
+		r, err := regexp.Compile(*v.NoRegexMatch)
+		if err != nil {
+			return ValidationError{"The validator for this field has an invalid NoRegexMatch", position}
+		}
+
+		if r.MatchString(jsonString) {
+			return ValidationError{fmt.Sprintf("This string matches the NoRegexMatch field: %s", *v.NoRegexMatch), position}
+		}
+	}
+	if v.AllowedValues != nil {
+		found := false
+		for _, allowedValue := range *v.AllowedValues {
+			if allowedValue == jsonString {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return ValidationError{"The value is not in the AllowedValues", position}
+		}
 	}
 
 	return nil
