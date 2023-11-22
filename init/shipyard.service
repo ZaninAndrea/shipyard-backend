@@ -8,8 +8,8 @@ Type=simple
 Restart=always
 RestartSec=1
 User=root
-ExecStart=/home/andrea/apis/shipyard-backend/src/build/generic_server_linux
-WorkingDirectory=/home/andrea/apis/shipyard-backend/src
+ExecStart=/home/andrea/apis/shipyard-backend/build/generic_server_linux
+WorkingDirectory=/home/andrea/apis/shipyard-backend
 
 [Install]
 WantedBy=multi-user.target
